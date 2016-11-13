@@ -2,9 +2,14 @@ package com.example.sahil.yhackapplication;
 
 import android.app.Activity;
 import android.app.PendingIntent;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -13,15 +18,30 @@ import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import com.example.sahil.yhackapplication.R;
+import com.felhr.usbserial.UsbSerialDevice;
+import com.felhr.usbserial.UsbSerialInterface;
+
+import android.widget.RelativeLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
 
 import org.w3c.dom.Text;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import jama.Matrix;
 import jkalman.JKalman;
@@ -41,16 +61,12 @@ public class AccelerometorSensor extends Activity implements SensorEventListener
     private float[] magneticValues = null;
     private final float[] mRotationMatrix = new float[9];
     private final float[] mOrientationAngles = new float[3];
-    private UsbManager usbManager;
-    private static final String ACTION_USB_PERMISSION =
-            "com.android.example.USB_PERMISSION";
-    private UsbDevice device;
-    private UsbDeviceConnection connection;
+    private float[] vel = new float[3];
+    private float[] pos = new float[3];
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        device = null;
-        usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         last = new float[3];
         try {
             kalman = new JKalman(6, 3);
@@ -68,6 +84,7 @@ public class AccelerometorSensor extends Activity implements SensorEventListener
         sensorManager.registerListener(this,
                 sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY),
                 SensorManager.SENSOR_DELAY_FASTEST);
+        System.out.println("hi");
     }
     @Override
     public void onAccuracyChanged(Sensor arg0, int arg1) {
@@ -119,33 +136,18 @@ public class AccelerometorSensor extends Activity implements SensorEventListener
 
                         android.opengl.Matrix.invertM(inv, 0, R, 0);
                         android.opengl.Matrix.multiplyMV(earthAcc, 0, inv, 0, deviceRelativeAcceleration, 0);
-                        //System.out.println("Acceleration" + "Values: (" + earthAcc[0] + ", " + earthAcc[1] + ", " + (earthAcc[2] - 9.8) + ")");
+
+                        for(int i = 0; i < 2; i++) {
+                            vel[i] += earthAcc[i] * .000001;
+                            pos[i] += vel[i] * .000001;
+                        }
+                        System.out.println(earthAcc[0] + "," + earthAcc[1]);
                     }
                 } else {
                     if(event.sensor.getType() == Sensor.TYPE_GRAVITY) {
                         gravityValues = event.values;
                     }
                 }
-            }
-        }
-        HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
-        if (!usbDevices.isEmpty()) {
-            boolean keep = true;
-            for (Map.Entry entry : usbDevices.entrySet()) {
-                UsbDevice device = (UsbDevice) entry.getValue();
-                int deviceVID = device.getVendorId();
-                if (deviceVID == 0x1F00) {
-                    PendingIntent pi = PendingIntent.getBroadcast(this, 0,
-                            new Intent(ACTION_USB_PERMISSION), 0);
-                    usbManager.requestPermission(device, pi);
-                    keep = false;
-                } else {
-                    UsbDeviceConnection connection = null;
-                    device = null;
-                }
-
-                if (!keep)
-                    break;
             }
         }
     }
@@ -156,6 +158,5 @@ public class AccelerometorSensor extends Activity implements SensorEventListener
                 mAccelerometerReading, mMagnetometerReading);
         final float[] orientationAngles = new float[3];
         sensorManager.getOrientation(rotationMatrix, orientationAngles);
-        
     }
 }
